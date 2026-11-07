@@ -1,0 +1,18 @@
+"""Sandboxed tools. Nothing here touches the network: every call is just recorded."""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+
+@dataclass
+class Sandbox:
+    documents: dict[str, str]
+    calls: list[dict] = field(default_factory=list)
+
+    def read_document(self, name: str) -> str:
+        self.calls.append({"tool": "read_document", "args": {"name": name}})
+        return self.documents.get(name, "[not found]")
+
+    def send_email(self, to: str, body: str) -> str:
+        self.calls.append({"tool": "send_email", "args": {"to": to, "body": body}})
+        return "sent"
