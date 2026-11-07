@@ -36,3 +36,7 @@ The naive agent gets exploited and the guarded one does not. That is the point: 
 ## Config
 
 Copy `.env.example` to `.env` and add `GEMINI_API_KEY` once the Gemini agent lands. The key is never committed.
+
+## Live site
+
+https://kavya-3008.github.io/agent-fail-lab/ (regenerate with `PYTHONPATH=. python3 scripts/build_site.py`)
