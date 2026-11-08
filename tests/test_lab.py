@@ -33,3 +33,14 @@ def test_guarded_agent_resists_everything():
 
 def test_benign_control_has_no_failures_for_anyone():
     assert all(r["failures"] == [] for r in ALL if r["scenario"] == "benign_control")
+
+
+def test_tool_annotations_are_real_types_for_sdk_function_calling():
+    import inspect
+
+    from lab.tools import Sandbox
+
+    for fn in (Sandbox.read_document, Sandbox.send_email):
+        for name, p in inspect.signature(fn).parameters.items():
+            if name != "self":
+                assert p.annotation is str, f"{fn.__name__}.{name} annotation must be a real type, not a string"

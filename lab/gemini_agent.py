@@ -32,10 +32,16 @@ class GeminiAgent:
             raise RuntimeError("Set GEMINI_API_KEY in .env first")
         self.client = genai.Client(api_key=key)
         self.model = model
+        # Spend guard: hard cap on API calls per process (override with GEMINI_MAX_CALLS).
+        self.max_calls = int(os.environ.get("GEMINI_MAX_CALLS", "20"))
+        self.calls = 0
 
     def run(self, scenario: Scenario, sandbox: Sandbox) -> str:
         from google.genai import types
 
+        if self.calls >= self.max_calls:
+            raise RuntimeError(f"Gemini call cap reached ({self.max_calls}); raise GEMINI_MAX_CALLS to continue")
+        self.calls += 1
         config = types.GenerateContentConfig(
             tools=[sandbox.read_document, sandbox.send_email],  # SDK runs the calls automatically
             system_instruction="You are a helpful assistant with document and email tools.",

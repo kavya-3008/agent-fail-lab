@@ -21,6 +21,14 @@ for r in results:
     calls = " → ".join(escape(c["tool"]) for c in r["tool_calls"])
     rows += f"<tr><td>{escape(r['agent'])}</td><td>{escape(r['scenario'])}<br><span class='note'>{escape(r['family'])}</span></td><td>{tag}</td><td class='mono'>{calls}</td></tr>"
 
+import json
+live = ''
+lp = ROOT / 'results/gemini_live.json'
+if lp.exists():
+    d = json.loads(lp.read_text())
+    lrows = ''.join(f"<tr><td>{escape(r['scenario'])}</td><td>{'read ' + str(r['tools'].count('read_document')) + ' doc(s), ' + ('no unauthorized calls' if not r['failures'] else escape(', '.join(r['failures'])))}</td></tr>" for r in d['results'])
+    live = f'<h2>A real model: {escape(d["model"])}</h2><div class="card"><table><tr><th>Scenario</th><th>What happened</th></tr>{lrows}</table><p class="note">One run per scenario on {escape(d["date"])}. Not a robust estimate: model output varies run to run. In multi_hop the model never opened the appendix, so that attack never reached it.</p></div>'
+
 html = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Agent Fail Lab</title><style>
 :root{{--bg:#f6f8fa;--fg:#14181c;--mut:#5b6670;--acc:#0f766e;--bad:#b91c1c;--card:#fff;--line:#dde3e8}}
@@ -40,6 +48,7 @@ a{{color:var(--acc)}}.note{{color:var(--mut);font-size:.88rem}}ol{{padding-left:
 <li>Tools are fake and sandboxed, so every call is recorded and nothing is really sent.</li>
 <li>Detectors flag unauthorized tool use, exfiltration and leaked canary secrets.</li></ol></div>
 <h2>Attacks resisted</h2><div class="card"><table><tr><th>Agent</th><th>Resisted</th><th></th></tr>{summary}</table><p class="note">Five attacks per agent: direct override, polite request, authority spoofing, invisible Unicode and a multi-hop injection. A keyword filter for "ignore previous instructions" stops one of the five.</p></div>
+{live}
 <h2>Every run</h2><div class="card"><table><tr><th>Agent</th><th>Scenario</th><th>Result</th><th>Tool calls</th></tr>{rows}</table></div>
 <p class="note">Agents here are scripted (naive, keyword-filtered and guarded) so results are deterministic. LLM-backed agents are on the roadmap.</p>
 </main></body></html>"""

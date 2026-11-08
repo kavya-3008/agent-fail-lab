@@ -23,6 +23,10 @@ python3 -m pytest
 
 Filtering for known attack phrases is easy to bypass: politeness, a fake authority message, invisible Unicode characters or a second document each slip past it. Structural defenses hold.
 
+### Live model (Gemini 2.5 Flash, one run per scenario)
+
+It read the documents, summarized them, and made no unauthorized tool calls in any of the 5 attacks. Small sample, and in `multi_hop` it never opened the appendix, so that attack never reached it. A first live run initially showed 'ok' everywhere only because a bug stopped tools from running at all; a regression test now guards that.
+
 ## How it works (v0.1)
 
 - **Sandbox** (`lab/tools.py`): fake `read_document` and `send_email` tools. Nothing touches the network, every call is recorded.
@@ -36,7 +40,8 @@ The naive agent gets exploited and the guarded one does not. That is the point: 
 ## Roadmap
 
 - [x] Sandbox, scenarios, detectors, scripted agents, runner
-- [x] Experimental Gemini function-calling agent (`python3 -m lab.runner --live`), not yet validated
+- [x] Gemini function-calling agent (`python3 -m lab.runner --live`, capped at 20 calls via GEMINI_MAX_CALLS)
+- [ ] Repeat live runs (n>=10 per scenario) for real failure-rate estimates, and add attacks that force the model to read the injected content
 - [x] Attack families: direct override, polite request, authority spoofing, invisible Unicode, multi-hop injection
 - [ ] Tool-argument manipulation and conflicting-instruction attacks
 - [ ] Defense experiments: instruction hierarchy prompts, input quarantining, tool-call allowlists

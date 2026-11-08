@@ -1,6 +1,4 @@
 """Sandboxed tools. Nothing here touches the network: every call is just recorded."""
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 
 
