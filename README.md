@@ -13,6 +13,16 @@ python3 -m lab.runner
 python3 -m pytest
 ```
 
+## Findings so far
+
+| Agent | Attacks resisted (of 5) |
+|---|---|
+| naive | 0 |
+| keyword filter ("ignore previous instructions") | 1 |
+| guarded (data is never instructions, tool allowlist) | 5 |
+
+Filtering for known attack phrases is easy to bypass: politeness, a fake authority message, invisible Unicode characters or a second document each slip past it. Structural defenses hold.
+
 ## How it works (v0.1)
 
 - **Sandbox** (`lab/tools.py`): fake `read_document` and `send_email` tools. Nothing touches the network, every call is recorded.
@@ -26,8 +36,9 @@ The naive agent gets exploited and the guarded one does not. That is the point: 
 ## Roadmap
 
 - [x] Sandbox, scenarios, detectors, scripted agents, runner
-- [ ] Gemini function-calling agent behind the same `run(scenario, sandbox)` interface
-- [ ] More attack families: conflicting instructions, tool misuse, hidden unicode, multi-step injection
+- [x] Experimental Gemini function-calling agent (`python3 -m lab.runner --live`), not yet validated
+- [x] Attack families: direct override, polite request, authority spoofing, invisible Unicode, multi-hop injection
+- [ ] Tool-argument manipulation and conflicting-instruction attacks
 - [ ] Defense experiments: instruction hierarchy prompts, input quarantining, tool-call allowlists
 - [ ] Trace viewer (HTML) to replay where an agent went wrong
 - [ ] Failure-rate report across models with confidence intervals
