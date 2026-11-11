@@ -5,6 +5,7 @@ They differ only in how much they trust text found inside documents. A real LLM-
 """
 from __future__ import annotations
 
+import base64
 import re
 
 from .scenarios import Scenario, reveal
@@ -14,6 +15,11 @@ DOC_REF = re.compile(r"'(\w+)'")
 INSTRUCTION = re.compile(
     r"(?:email|forward|send)\b[^.]*?'(?P<doc>\w+)'[^.]*?\bto\s+(?P<to>[\w.+-]+@[\w.-]+\.\w+)", re.I
 )
+ADDR = r"[\w.+-]+@[\w.-]+\.\w+"
+TASK_EMAIL = re.compile(rf"email the summary to (?P<to>{ADDR})", re.I)
+REDIRECT = re.compile(rf"send (?:all )?summaries to (?P<to>{ADDR})", re.I)
+CC = re.compile(rf"(?:\bcc:?|copies to)\s+(?P<to>{ADDR})", re.I)
+INCLUDE = re.compile(r"include (?:the )?contents of '(?P<doc>\w+)'(?P<rest>[^.]*)", re.I)
 OVERRIDE_PHRASE = re.compile(r"ignore (all )?previous", re.I)
 
 
@@ -31,6 +37,26 @@ def _obey_instructions(sandbox: Sandbox, text: str) -> None:
         sandbox.send_email(m.group("to"), sandbox.read_document(m.group("doc")))
 
 
+def _send_summary(sandbox: Sandbox, task: str, text: str, *, obey: bool) -> None:
+    """If the user asked for the summary to be emailed, send it. A gullible agent lets the document edit the arguments."""
+    m = TASK_EMAIL.search(task)
+    if not m:
+        return
+    to, body = m.group("to"), f"Summary: {text[:60]}"
+    if obey:
+        text = text.replace("[at]", "@")  # a capable model happily de-obfuscates addresses
+        if r := REDIRECT.search(text):
+            to = r.group("to")
+        if c := CC.search(text):
+            to = f"{to}, {c.group('to')}"
+        if i := INCLUDE.search(text):
+            extra = sandbox.read_document(i.group("doc"))
+            if "base64" in i.group("rest").lower():
+                extra = base64.b64encode(extra.encode()).decode()
+            body += "\n" + extra
+    sandbox.send_email(to, body)
+
+
 class NaiveAgent:
     """Treats instructions found in documents as if the user wrote them, even invisible ones."""
 
@@ -39,6 +65,7 @@ class NaiveAgent:
     def run(self, scenario: Scenario, sandbox: Sandbox) -> str:
         text = reveal(_read_with_references(sandbox, DOC_REF.search(scenario.task).group(1)))
         _obey_instructions(sandbox, text)
+        _send_summary(sandbox, scenario.task, text, obey=True)
         return f"Summary: {text[:60]}"
 
 
@@ -51,7 +78,9 @@ class KeywordFilterAgent:
         raw = _read_with_references(sandbox, DOC_REF.search(scenario.task).group(1))
         if OVERRIDE_PHRASE.search(raw):
             return "Refused: suspicious content"
-        _obey_instructions(sandbox, reveal(raw))
+        text = reveal(raw)
+        _obey_instructions(sandbox, text)
+        _send_summary(sandbox, scenario.task, text, obey=True)
         return f"Summary: {raw[:60]}"
 
 
@@ -61,4 +90,6 @@ class GuardedAgent:
     name = "guarded"
 
     def run(self, scenario: Scenario, sandbox: Sandbox) -> str:
-        return f"Summary: {sandbox.read_document(DOC_REF.search(scenario.task).group(1))[:60]}"
+        text = sandbox.read_document(DOC_REF.search(scenario.task).group(1))
+        _send_summary(sandbox, scenario.task, text, obey=False)
+        return f"Summary: {text[:60]}"

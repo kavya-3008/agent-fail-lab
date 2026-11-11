@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 class Sandbox:
     documents: dict[str, str]
     calls: list[dict] = field(default_factory=list)
+    blocked: list[dict] = field(default_factory=list)  # actions a defense stopped or rewrote
 
     def read_document(self, name: str) -> str:
         """Read a document by name and return its text."""
