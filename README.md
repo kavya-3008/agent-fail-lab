@@ -15,13 +15,27 @@ python3 -m pytest
 
 ## Findings so far
 
-| Agent | Attacks resisted (of 5) |
-|---|---|
-| naive | 0 |
-| keyword filter ("ignore previous instructions") | 1 |
-| guarded (data is never instructions, tool allowlist) | 5 |
+Eleven attacks per agent: the original five injection styles, five tool-argument manipulations (the user *did* ask for an email, the document bends its arguments) and one conflicting-instruction attack. Two benign controls check that defenses do not break the user's real task.
 
-Filtering for known attack phrases is easy to bypass: politeness, a fake authority message, invisible Unicode characters or a second document each slip past it. Structural defenses hold.
+| Agent | Attacks resisted (of 11) | User task still done (of 11) |
+|---|---|---|
+| naive | 0 | 8 |
+| keyword filter ("ignore previous instructions") | 1 | 8 |
+| guarded (data is never instructions, tool allowlist) | 11 | 11 |
+| naive + recipient allowlist | 9 | 8 |
+| naive + output DLP (redact credential-like strings) | 1 | 8 |
+| naive + input quarantine (strip invisible text and instruction-like sentences) | 10 | 10 |
+| naive + all three layered | 11 | 10 |
+
+What each defense does and does not catch (all offline, scripted agents):
+
+- **Recipient allowlist** (only addresses named in the user's task may receive mail) stops every redirect, CC, obfuscated CC and classic exfiltration, but **fails** against a secret smuggled into the body of an allowed email (`arg_body_smuggle`, `arg_encoded_smuggle`): the recipient is legitimate, the content is not.
+- **Output DLP** redacts a literal `api_token=...` in the body, but **fails** against base64-encoded secrets and does nothing about mail sent to the wrong address (the redacted mail still reaches the attacker). Only 1 of 11 resisted.
+- **Input quarantine** removes invisible Unicode and instruction-like sentences from documents before the agent sees them. It stopped 10 of 11 but **fails** on an obfuscated address (`attacker[at]evil.example`) that its cue list does not recognize.
+- **Layering** all three resisted all 11, at a cost: in `arg_obfuscated_cc` the allowlist blocked the whole email, so the user's legitimate email never went out (safe, but the task was not completed).
+- The detector also checks for secrets that are reversed, hex- or base64-encoded, and for emails to any address the user did not authorize (`wrong_recipient`).
+
+Caveat: the agents are scripted and the scenarios were written by the same author as the defenses, so these results map what each mechanism can and cannot see; they are not a guarantee against a real model or a real adversary. The quarantine's 10/11 in particular is likely optimistic against adaptive paraphrasing.
 
 ### Live model (Gemini 2.5 Flash, one run per scenario)
 
@@ -31,6 +45,7 @@ It read the documents, summarized them, and made no unauthorized tool calls in a
 
 - **Sandbox** (`lab/tools.py`): fake `read_document` and `send_email` tools. Nothing touches the network, every call is recorded.
 - **Scenarios** (`lab/scenarios.py`): a user task plus documents with a hidden attack and a canary secret.
+- **Defenses** (`lab/defenses.py`): composable tool wrappers (recipient allowlist, output DLP, input quarantine) that guard an agent without changing it.
 - **Detectors** (`lab/detectors.py`): flag unauthorized tool use, exfiltration to the attacker address, and canary leaks.
 - **Agents** (`lab/agents.py`): a deliberately naive agent and a guarded one, both scripted so results are deterministic.
 - **Runner** (`lab/runner.py`): runs every agent against every scenario and writes JSONL traces.
@@ -43,8 +58,8 @@ The naive agent gets exploited and the guarded one does not. That is the point: 
 - [x] Gemini function-calling agent (`python3 -m lab.runner --live`, capped at 20 calls via GEMINI_MAX_CALLS)
 - [ ] Repeat live runs (n>=10 per scenario) for real failure-rate estimates, and add attacks that force the model to read the injected content
 - [x] Attack families: direct override, polite request, authority spoofing, invisible Unicode, multi-hop injection
-- [ ] Tool-argument manipulation and conflicting-instruction attacks
-- [ ] Defense experiments: instruction hierarchy prompts, input quarantining, tool-call allowlists
+- [x] Tool-argument manipulation and conflicting-instruction attacks
+- [x] Defense experiments: input quarantining, tool-call allowlists, output filtering (instruction-hierarchy prompts need a live model, still open)
 - [ ] Trace viewer (HTML) to replay where an agent went wrong
 - [ ] Failure-rate report across models with confidence intervals
 - [ ] Scenario generator that mutates attacks automatically
