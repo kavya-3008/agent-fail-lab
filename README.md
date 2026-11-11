@@ -37,6 +37,22 @@ What each defense does and does not catch (all offline, scripted agents):
 
 Caveat: the agents are scripted and the scenarios were written by the same author as the defenses, so these results map what each mechanism can and cannot see; they are not a guarantee against a real model or a real adversary. The quarantine's 10/11 in particular is likely optimistic against adaptive paraphrasing.
 
+### Mutation robustness
+
+`lab/mutations.py` rewrites the injected text of each of the 11 attacks with 7 mutators (uppercase, urgent prefix, team framing, "ignore previous instructions" prefix, `@` to `[at]`, note wrapper, invisible Unicode) alone and in pairs: 308 mutants. A mutant only counts if the naive agent still falls for it (222 did); defenses are scored on those.
+
+| Agent | Effective mutants resisted |
+|---|---|
+| naive | 0 / 222 |
+| keyword filter | 47 / 222 |
+| guarded | 222 / 222 |
+| naive + recipient allowlist | 180 / 222 |
+| naive + output DLP | 21 / 222 |
+| naive + input quarantine | 194 / 222 |
+| naive + all three layered | 222 / 222 |
+
+Mutation did not uncover new weaknesses in the scripted defenses: every failure is one of the blind spots already listed (quarantine breaks only on the obfuscated-address attack, 28 mutants; the allowlist only on the two body-smuggling attacks, 42 mutants). The keyword filter only holds when a mutator happens to add the phrase it looks for. Caveat: the mutators are mechanical and the scripted agents' regexes are case-insensitive and format-tolerant, so this measures defense brittleness to surface changes, not to a creative paraphrasing adversary; real model agents may react very differently.
+
 ### Live model (Gemini 2.5 Flash, one run per scenario)
 
 It read the documents, summarized them, and made no unauthorized tool calls in any of the 5 attacks. Small sample, and in `multi_hop` it never opened the appendix, so that attack never reached it. A first live run initially showed 'ok' everywhere only because a bug stopped tools from running at all; a regression test now guards that.
@@ -62,7 +78,7 @@ The naive agent gets exploited and the guarded one does not. That is the point: 
 - [x] Defense experiments: input quarantining, tool-call allowlists, output filtering (instruction-hierarchy prompts need a live model, still open)
 - [ ] Trace viewer (HTML) to replay where an agent went wrong
 - [ ] Failure-rate report across models with confidence intervals
-- [ ] Scenario generator that mutates attacks automatically
+- [x] Scenario generator that mutates attacks automatically (`lab/mutations.py`)
 
 ## Config
 
