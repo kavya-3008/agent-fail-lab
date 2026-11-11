@@ -2,10 +2,13 @@
 from html import escape
 from pathlib import Path
 
+from lab.mutations import mutation_report
 from lab.runner import all_agents, run_all
 
 ROOT = Path(__file__).resolve().parent.parent
 results = run_all(all_agents())
+mut = mutation_report(all_agents())
+mut_rows = ''.join(f"<tr><td>{escape(a)}</td><td>{d['resisted']} / {mut['effective']}</td></tr>" for a, d in mut['agents'].items())
 agents = list(dict.fromkeys(r['agent'] for r in results))
 summary = ''
 for a in agents:
@@ -49,6 +52,7 @@ a{{color:var(--acc)}}.note{{color:var(--mut);font-size:.88rem}}ol{{padding-left:
 <li>Tools are fake and sandboxed, so every call is recorded and nothing is really sent.</li>
 <li>Detectors flag unauthorized tool use, exfiltration and leaked canary secrets.</li></ol></div>
 <h2>Attacks resisted</h2><div class="card"><table><tr><th>Agent</th><th>Attacks resisted</th><th>User task still done</th><th></th></tr>{summary}</table><p class="note">Eleven attacks per agent: five injection styles (direct override, polite request, authority spoofing, invisible Unicode, multi-hop), five tool-argument manipulations (redirected recipient, CC, obfuscated CC, secret smuggled into the body, base64-encoded smuggling) and one conflicting-instruction attack. "User task still done" counts runs where the requested summary or email still happened: a defense that blocks everything is not a good defense. Defenses are added to the naive agent as wrappers (<code>naive+...</code>). Each defense is a simple pattern-based mechanism, and the scenarios were written by the same author, so treat these numbers as a map of what each mechanism can and cannot see, not as a guarantee. Honest failures: the recipient allowlist cannot stop a secret placed in the body of an allowed email; output redaction misses encoded secrets and does not stop mail going to the wrong place; quarantine misses an obfuscated address (<code>attacker[at]evil.example</code>).</p></div>
+<h2>Mutation robustness</h2><div class="card"><table><tr><th>Agent</th><th>Effective mutants resisted</th></tr>{mut_rows}</table><p class="note">{mut['generated']} mutants (7 text mutators, alone and in pairs, applied to the injected text of each attack); {mut['effective']} still fool the naive agent and are used for scoring. No new weaknesses appeared: quarantine still fails only on the obfuscated address, the allowlist only on secrets smuggled into an allowed email. The mutators are mechanical and the scripted agents are format-tolerant, so this does not show robustness against a creative adversary.</p></div>
 {live}
 <h2>Every run</h2><div class="card"><table><tr><th>Agent</th><th>Scenario</th><th>Result</th><th>Tool calls</th><th>Defense actions</th></tr>{rows}</table></div>
 <p class="note">Agents here are scripted (naive, keyword-filtered, guarded, and the naive agent wrapped in defenses) so results are deterministic. LLM-backed agents are on the roadmap.</p>
