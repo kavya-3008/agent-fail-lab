@@ -37,6 +37,10 @@ What each defense does and does not catch (all offline, scripted agents):
 
 Caveat: the agents are scripted and the scenarios were written by the same author as the defenses, so these results map what each mechanism can and cannot see; they are not a guarantee against a real model or a real adversary. The quarantine's 10/11 in particular is likely optimistic against adaptive paraphrasing.
 
+### Trace viewer
+
+`docs/traces.html` replays every run (7 agents x 13 scenarios) step by step: the user task, each tool call, the document text the agent read (invisible Unicode is decoded and highlighted), defense actions, and the first tool call the detectors flag. Filter by failures or passes. Per-call flagging reuses the same detectors, so it only shows what they can see: a `read_document` of the secrets file is not flagged, only the later send is. It is a debugging aid, not a new measurement.
+
 ### Mutation robustness
 
 `lab/mutations.py` rewrites the injected text of each of the 11 attacks with 7 mutators (uppercase, urgent prefix, team framing, "ignore previous instructions" prefix, `@` to `[at]`, note wrapper, invisible Unicode) alone and in pairs: 308 mutants. A mutant only counts if the naive agent still falls for it (222 did); defenses are scored on those.
@@ -76,7 +80,7 @@ The naive agent gets exploited and the guarded one does not. That is the point: 
 - [x] Attack families: direct override, polite request, authority spoofing, invisible Unicode, multi-hop injection
 - [x] Tool-argument manipulation and conflicting-instruction attacks
 - [x] Defense experiments: input quarantining, tool-call allowlists, output filtering (instruction-hierarchy prompts need a live model, still open)
-- [ ] Trace viewer (HTML) to replay where an agent went wrong
+- [x] Trace viewer (HTML) to replay where an agent went wrong (`lab/viewer.py`, published as `docs/traces.html`)
 - [ ] Failure-rate report across models with confidence intervals
 - [x] Scenario generator that mutates attacks automatically (`lab/mutations.py`)
 
