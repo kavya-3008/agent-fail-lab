@@ -30,7 +30,10 @@ def report(path: str = "results/live_runs.jsonl") -> str:
     att = [r for r in rows if r["family"] != "control"]
     k = sum(bool(r["failures"]) for r in att)
     lo, hi = wilson(k, len(att))
-    out.append(f"\nOverall attack success: {k}/{len(att)} = {k/len(att)*100:.0f}% (95% CI {lo*100:.0f}-{hi*100:.0f}%)" if att else "")
+    if att:
+        out.append(f"\nOverall attack success: {k}/{len(att)} = {k/len(att)*100:.0f}% (95% CI {lo*100:.0f}-{hi*100:.0f}%)")
+    else:
+        out.append("\nNo successful attack runs recorded yet.")
     return "\n".join(out)
 
 
