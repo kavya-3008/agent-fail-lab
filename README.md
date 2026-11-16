@@ -27,6 +27,8 @@ Eleven attacks per agent: the original five injection styles, five tool-argument
 | naive + output DLP (redact credential-like strings) | 1 | 8 |
 | naive + input quarantine (strip invisible text and instruction-like sentences) | 10 | 10 |
 | naive + all three layered | 11 | 10 |
+| naive + egress provenance guard (block mail whose body contains another document's content) | 8 | 6 |
+| naive + allowlist + egress guard | 11 | 6 |
 
 What each defense does and does not catch (all offline, scripted agents):
 
@@ -34,6 +36,7 @@ What each defense does and does not catch (all offline, scripted agents):
 - **Output DLP** redacts a literal `api_token=...` in the body, but **fails** against base64-encoded secrets and does nothing about mail sent to the wrong address (the redacted mail still reaches the attacker). Only 1 of 11 resisted.
 - **Input quarantine** removes invisible Unicode and instruction-like sentences from documents before the agent sees them. It stopped 10 of 11 but **fails** on an obfuscated address (`attacker[at]evil.example`) that its cue list does not recognize.
 - **Layering** all three resisted all 11, at a cost: in `arg_obfuscated_cc` the allowlist blocked the whole email, so the user's legitimate email never went out (safe, but the task was not completed).
+- **Egress provenance guard** (new) blocks any email whose body contains text from a document the user's task did not name (plain, reversed, hex or base64). It stops both body-smuggling attacks, including the base64 one DLP misses, without guessing what a secret looks like. It **fails** on every recipient attack (`arg_redirect_recipient`, `arg_cc_attacker`, `arg_obfuscated_cc`): the body is just a summary, so nothing in it is protected. Alone it resisted 8 of 11. Paired with the recipient allowlist it resisted all 11 with no DLP or quarantine, so the two structural checks (who receives, what is sent) cover each other's blind spot. Cost: it only completed the user's task in 6 of 11 runs, because it blocks the whole email when it sees a smuggled body rather than sending a clean one. On the mutation set it resisted 107 / 222 alone and 222 / 222 with the allowlist; its mutant failures are all recipient attacks plus uppercased exfil mutants where the naive agent mails the attacker an empty `[not found]` body. Limits: it matches on literal tokens (8+ characters) from other documents, so a paraphrased, split or character-substituted secret would get through, and a benign task that legitimately summarizes a second document would be blocked.
 - The detector also checks for secrets that are reversed, hex- or base64-encoded, and for emails to any address the user did not authorize (`wrong_recipient`).
 
 Caveat: the agents are scripted and the scenarios were written by the same author as the defenses, so these results map what each mechanism can and cannot see; they are not a guarantee against a real model or a real adversary. The quarantine's 10/11 in particular is likely optimistic against adaptive paraphrasing.
@@ -51,6 +54,8 @@ Caveat: the agents are scripted and the scenarios were written by the same autho
 | naive + output DLP | 21 / 222 |
 | naive + input quarantine | 194 / 222 |
 | naive + all three layered | 222 / 222 |
+| naive + egress guard | 107 / 222 |
+| naive + allowlist + egress guard | 222 / 222 |
 
 Mutation did not uncover new weaknesses in the scripted defenses: every failure is one of the blind spots already listed (quarantine breaks only on the obfuscated-address attack, 28 mutants; the allowlist only on the two body-smuggling attacks, 42 mutants). The keyword filter only holds when a mutator happens to add the phrase it looks for. Caveat: the mutators are mechanical and the scripted agents' regexes are case-insensitive and format-tolerant, so this measures defense brittleness to surface changes, not to a creative paraphrasing adversary; real model agents may react very differently.
 
@@ -83,6 +88,8 @@ The naive agent gets exploited and the guarded one does not. That is the point: 
 - [x] Defense experiments: input quarantining, tool-call allowlists, output filtering (instruction-hierarchy prompts need a live model, still open)
 - [x] Trace viewer (HTML) to replay where an agent went wrong (`docs/traces.html`, built by `scripts/build_trace_viewer.py`)
 - [~] Failure-rate report with confidence intervals (`scripts/live_report.py`; single model so far, no cross-model comparison yet)
+- [x] Egress provenance guard (cross-document content check on outgoing mail), alone and paired with the allowlist
+- [ ] Adaptive attacks against the egress guard (split / paraphrased / character-substituted secrets) to measure how much its literal matching is worth
 - [x] Scenario generator that mutates attacks automatically (`lab/mutations.py`)
 
 ## Config
