@@ -76,7 +76,7 @@ The naive agent gets exploited and the guarded one does not. That is the point: 
 - [x] Attack families: direct override, polite request, authority spoofing, invisible Unicode, multi-hop injection
 - [x] Tool-argument manipulation and conflicting-instruction attacks
 - [x] Defense experiments: input quarantining, tool-call allowlists, output filtering (instruction-hierarchy prompts need a live model, still open)
-- [ ] Trace viewer (HTML) to replay where an agent went wrong
+- [x] Trace viewer (HTML) to replay where an agent went wrong (`docs/traces.html`, built by `scripts/build_trace_viewer.py`)
 - [ ] Failure-rate report across models with confidence intervals
 - [x] Scenario generator that mutates attacks automatically (`lab/mutations.py`)
 
