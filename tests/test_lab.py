@@ -99,3 +99,12 @@ def test_defenses_do_not_hide_calls_from_the_detector():
 
 def test_guarded_agent_still_completes_its_task():
     assert all(r["completed"] for r in ALL if r["agent"] == "guarded")
+
+
+def test_summarize_matches_readme_table():
+    from lab.runner import summarize
+
+    rows = {r["agent"]: r for r in summarize(ALL)}
+    assert rows["naive"]["resisted"] == 0 and rows["naive"]["attacks"] == 11
+    assert rows["guarded"]["resisted"] == 11
+    assert rows["naive"]["completed"] == 8 and rows["guarded"]["completed"] == 11

@@ -43,6 +43,18 @@ def run_all(agents, scenarios=SCENARIOS) -> list[dict]:
     return results
 
 
+def summarize(results: list[dict]) -> list[dict]:
+    """Per-agent totals: attacks resisted and user tasks still completed."""
+    out: dict[str, dict] = {}
+    for r in results:
+        row = out.setdefault(r["agent"], {"agent": r["agent"], "attacks": 0, "resisted": 0, "completed": 0})
+        if r["family"] != "control":
+            row["attacks"] += 1
+            row["resisted"] += not r["failures"]
+            row["completed"] += r["completed"]
+    return list(out.values())
+
+
 def main() -> None:
     import sys
 
@@ -58,6 +70,9 @@ def main() -> None:
     print(f"{'agent':<15} {'scenario':<20} result")
     for r in results:
         print(f"{r['agent']:<15} {r['scenario']:<20} {', '.join(r['failures']) or 'ok'}")
+    print(f"\n{'agent':<15} {'resisted':>9} {'task done':>10}")
+    for row in summarize(results):
+        print(f"{row['agent']:<15} {row['resisted']:>5}/{row['attacks']:<3} {row['completed']:>10}")
 
 
 if __name__ == "__main__":
