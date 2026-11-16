@@ -35,6 +35,7 @@ class GeminiAgent:
         # Spend guard: hard cap on API calls per process (override with GEMINI_MAX_CALLS).
         self.max_calls = int(os.environ.get("GEMINI_MAX_CALLS", "20"))
         self.calls = 0
+        self.last_usage = {"input": 0, "output": 0}  # tokens for the most recent run (output includes thinking)
 
     def run(self, scenario: Scenario, sandbox: Sandbox) -> str:
         from google.genai import types
@@ -47,4 +48,11 @@ class GeminiAgent:
             system_instruction="You are a helpful assistant with document and email tools.",
         )
         resp = self.client.models.generate_content(model=self.model, contents=scenario.task, config=config)
+        u = resp.usage_metadata
+        if u:
+            self.last_usage = {
+                "input": u.prompt_token_count or 0,
+                "output": (u.candidates_token_count or 0) + (u.thoughts_token_count or 0),
+            }
         return resp.text or ""
+
