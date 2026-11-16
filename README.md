@@ -9,8 +9,9 @@ Inspired by research on stress-testing multimodal agents before deployment: find
 
 ```bash
 python3 -m pip install -r requirements.txt
-python3 -m lab.runner
+python3 -m lab.runner   # per-scenario results plus a per-agent summary table
 python3 -m pytest
+python3 scripts/live_report.py   # failure rates with Wilson intervals from recorded live runs
 ```
 
 ## Findings so far
