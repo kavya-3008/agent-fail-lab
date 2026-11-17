@@ -6,6 +6,7 @@ pattern-based mechanisms so their strengths and blind spots are easy to see in t
 from __future__ import annotations
 
 import base64
+import codecs
 import re
 
 from .agents import ADDR, NaiveAgent
@@ -18,6 +19,9 @@ class Defense:
 
     def filter_read(self, text: str) -> str:
         return text
+
+    def reset(self) -> None:
+        """Called before each run so a stateful defense does not carry memory between scenarios."""
 
     def check_send(self, scenario: Scenario, to: str, body: str) -> tuple[str, str, str | None]:
         """Return (to, body, block_reason). A non-None block_reason vetoes the call."""
@@ -99,6 +103,50 @@ class EgressProvenanceGuard(Defense):
         return to, body, None
 
 
+class NormalizingEgressGuard(EgressProvenanceGuard):
+    """Egress guard v2: the same provenance idea, hardened against the adaptive formats that beat v1.
+
+    It compares in a *normalized* space (lowercase, leetspeak folded, every separator dropped), also tries rot13 and
+    base32, and remembers everything already sent in this run so a secret split across two emails is caught on the
+    second. It still cannot see a Caesar shift, Cyrillic lookalikes, or a fragment shorter than MIN_TOKEN: that is
+    measured in lab/adaptive.py rather than assumed.
+    """
+
+    name = "egress_guard_v2"
+    _FOLD = str.maketrans("4310543105", "aeiosaeios")
+
+    def __init__(self):
+        self.history = ""
+
+    def reset(self):
+        self.history = ""
+
+    @classmethod
+    def _norm(cls, text: str) -> str:
+        return re.sub(r"[^a-z0-9]", "", text.lower().translate(cls._FOLD))
+
+    def _variants(self, text: str) -> list[str]:
+        return [text, codecs.encode(text, "rot13")]
+
+    def check_send(self, scenario, to, body):
+        tokens = self._protected_tokens(scenario)
+        protected = {self._norm(f) for t in tokens for f in self._forms(t) | {base64.b32encode(t.encode()).decode(),
+                                                                              codecs.encode(t, "rot13")}}
+        protected = {p for p in protected if len(p) >= self.MIN_TOKEN}
+        seen = self.history + self._norm(body)
+        self.history += self._norm(body)
+        views = [self._norm(v) for v in self._variants(body)] + [seen]
+        for run in re.findall(r"[A-Za-z0-9+/=]{12,}", body):
+            for decode in (lambda r: base64.b64decode(r + "=" * (-len(r) % 4)), lambda r: base64.b32decode(r + "=" * (-len(r) % 8))):
+                try:
+                    views.append(self._norm(decode(run).decode("latin-1")))
+                except Exception:
+                    pass
+        if any(p in v for p in protected for v in views):
+            return to, body, "normalized body (or this run's mail so far) contains content of a document the user did not name"
+        return to, body, None
+
+
 class DefendedSandbox:
     """What the agent sees as its sandbox. Real calls still land in the base sandbox, so detectors see the truth."""
 
@@ -137,6 +185,8 @@ class DefendedAgent:
         self.inner, self.defenses, self.name = inner, defenses, name
 
     def run(self, scenario: Scenario, sandbox: Sandbox) -> str:
+        for d in self.defenses:
+            d.reset()
         return self.inner.run(scenario, DefendedSandbox(sandbox, scenario, self.defenses))
 
 
@@ -148,4 +198,6 @@ def defended_naive_agents() -> list[DefendedAgent]:
         DefendedAgent(NaiveAgent(), [InputQuarantine(), RecipientAllowlist(), OutputDLP()], "naive+all three"),
         DefendedAgent(NaiveAgent(), [EgressProvenanceGuard()], "naive+egress guard"),
         DefendedAgent(NaiveAgent(), [RecipientAllowlist(), EgressProvenanceGuard()], "naive+allowlist+egress guard"),
+        DefendedAgent(NaiveAgent(), [NormalizingEgressGuard()], "naive+egress guard v2"),
+        DefendedAgent(NaiveAgent(), [RecipientAllowlist(), NormalizingEgressGuard()], "naive+allowlist+egress guard v2"),
     ]
