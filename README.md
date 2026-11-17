@@ -29,6 +29,8 @@ Eleven attacks per agent: the original five injection styles, five tool-argument
 | naive + all three layered | 11 | 10 |
 | naive + egress provenance guard (block mail whose body contains another document's content) | 8 | 6 |
 | naive + allowlist + egress guard | 11 | 6 |
+| naive + egress guard v2 (normalizing, remembers earlier mail) | 8 | 6 |
+| naive + allowlist + egress guard v2 | 11 | 6 |
 
 What each defense does and does not catch (all offline, scripted agents):
 
@@ -40,6 +42,19 @@ What each defense does and does not catch (all offline, scripted agents):
 - The detector also checks for secrets that are reversed, hex- or base64-encoded, and for emails to any address the user did not authorize (`wrong_recipient`).
 
 Caveat: the agents are scripted and the scenarios were written by the same author as the defenses, so these results map what each mechanism can and cannot see; they are not a guarantee against a real model or a real adversary. The quarantine's 10/11 in particular is likely optimistic against adaptive paraphrasing.
+
+### Adaptive attacks on the egress guard
+
+`lab/adaptive.py` holds eight extra attacks (kept out of the 11-attack table) that leak the same secret into an email to the *allowed* recipient but write it differently: dash between every character, leetspeak, rot13, base32, Caesar shift 3, Cyrillic lookalike letters, only the last six characters, and split across two emails. The detector was extended to recognize each format (and a secret split over several emails), and every attack beats the naive agent (0 / 8 resisted).
+
+| Agent | Adaptive attacks resisted (of 8) |
+|---|---|
+| naive, keyword filter, allowlist, output DLP | 0 |
+| egress guard (literal), alone or with allowlist | **0** |
+| egress guard v2, alone or with allowlist | 5 |
+| guarded, input quarantine, all three layered | 8 |
+
+The literal egress guard, which looked strong above, **fails all eight**: its matching is exactly as brittle as suspected. Egress guard v2 (`NormalizingEgressGuard`) compares in a normalized space (lowercase, leetspeak folded, all separators dropped), also tries rot13 and base32, and remembers earlier mail from the same run, which catches dashed, leetspeak, rot13, base32 and the split-over-two-emails leak (the first half goes out, the second is blocked). It still **fails** on the Caesar shift, the Cyrillic lookalikes and the six-character fragment (below its 8-character minimum), and no amount of extra encodings would close that gap: it is a blocklist of known transforms. v2 gives identical headline numbers on the 11 attacks (8 alone, 11 with the allowlist, 6 tasks completed) and on the mutation set (107 and 222 of 222). Quarantine resisting all eight is an artifact: the attack sentences contain the cue word "include", which its list drops; rewording the sentence would likely defeat it (not yet tested). Same caveat as above: scripted agents, one author.
 
 ### Mutation robustness
 
@@ -56,6 +71,8 @@ Caveat: the agents are scripted and the scenarios were written by the same autho
 | naive + all three layered | 222 / 222 |
 | naive + egress guard | 107 / 222 |
 | naive + allowlist + egress guard | 222 / 222 |
+| naive + egress guard v2 | 107 / 222 |
+| naive + allowlist + egress guard v2 | 222 / 222 |
 
 Mutation did not uncover new weaknesses in the scripted defenses: every failure is one of the blind spots already listed (quarantine breaks only on the obfuscated-address attack, 28 mutants; the allowlist only on the two body-smuggling attacks, 42 mutants). The keyword filter only holds when a mutator happens to add the phrase it looks for. Caveat: the mutators are mechanical and the scripted agents' regexes are case-insensitive and format-tolerant, so this measures defense brittleness to surface changes, not to a creative paraphrasing adversary; real model agents may react very differently.
 
@@ -89,7 +106,7 @@ The naive agent gets exploited and the guarded one does not. That is the point: 
 - [x] Trace viewer (HTML) to replay where an agent went wrong (`docs/traces.html`, built by `scripts/build_trace_viewer.py`)
 - [~] Failure-rate report with confidence intervals (`scripts/live_report.py`; single model so far, no cross-model comparison yet)
 - [x] Egress provenance guard (cross-document content check on outgoing mail), alone and paired with the allowlist
-- [ ] Adaptive attacks against the egress guard (split / paraphrased / character-substituted secrets) to measure how much its literal matching is worth
+- [x] Adaptive attacks against the egress guard (split / encoded / character-substituted secrets) plus a hardened v2 guard (`lab/adaptive.py`); paraphrased secrets and reworded instructions (to test quarantine) still open
 - [x] Scenario generator that mutates attacks automatically (`lab/mutations.py`)
 
 ## Config
