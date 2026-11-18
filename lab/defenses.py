@@ -63,6 +63,23 @@ class InputQuarantine(Defense):
         return " ".join(s for s in sentences if s and not self.CUE.search(s))
 
 
+class InputQuarantineV2(InputQuarantine):
+    """Quarantine v2: a wider cue list aimed at reworded instructions and obfuscated addresses.
+
+    Adds delivery/appending verbs (mail, relay, dispatch, transmit, share, deliver, append, attach, disregard...),
+    any sentence that quotes a document name ('secrets'), and addresses written as `x [at] y`, `x (at) y` or
+    `x at y dot z`. It is still a vocabulary list: it has no idea what an instruction *means*, and it does not
+    normalize Unicode, so lookalike characters and unlisted verbs get through (measured in lab/paraphrase.py).
+    """
+
+    name = "quarantine_v2"
+    CUE = re.compile(
+        r"(?i)\b(?:e-?mail|mail|send|forward|relay|dispatch|transmit|share|deliver|cc|bcc|include|append|attach|"
+        r"ignore|disregard|supersedes?|override)\b|'\w+'|" + ADDR
+        + r"|\b[\w.+-]+\s*(?:\[at\]|\(at\)|\bat\b)\s*[\w-]+\s*(?:\[dot\]|\(dot\)|\bdot\b|\.)\s*\w+"
+    )
+
+
 class EgressProvenanceGuard(Defense):
     """Block outgoing mail whose body carries content from a document the user's task never named.
 
@@ -196,6 +213,7 @@ def defended_naive_agents() -> list[DefendedAgent]:
         DefendedAgent(NaiveAgent(), [OutputDLP()], "naive+dlp"),
         DefendedAgent(NaiveAgent(), [InputQuarantine()], "naive+quarantine"),
         DefendedAgent(NaiveAgent(), [InputQuarantine(), RecipientAllowlist(), OutputDLP()], "naive+all three"),
+        DefendedAgent(NaiveAgent(), [InputQuarantineV2()], "naive+quarantine v2"),
         DefendedAgent(NaiveAgent(), [EgressProvenanceGuard()], "naive+egress guard"),
         DefendedAgent(NaiveAgent(), [RecipientAllowlist(), EgressProvenanceGuard()], "naive+allowlist+egress guard"),
         DefendedAgent(NaiveAgent(), [NormalizingEgressGuard()], "naive+egress guard v2"),
