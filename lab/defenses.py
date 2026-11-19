@@ -23,6 +23,10 @@ class Defense:
     def reset(self) -> None:
         """Called before each run so a stateful defense does not carry memory between scenarios."""
 
+    def check_read(self, scenario: Scenario, name: str) -> str | None:
+        """Return a block reason to veto reading document `name`, or None to allow it."""
+        return None
+
     def check_send(self, scenario: Scenario, to: str, body: str) -> tuple[str, str, str | None]:
         """Return (to, body, block_reason). A non-None block_reason vetoes the call."""
         return to, body, None
@@ -37,6 +41,22 @@ class RecipientAllowlist(Defense):
         allowed = set(re.findall(ADDR, scenario.task))
         bad = [r for r in re.split(r"[,;\s]+", to) if r and r not in allowed]
         return to, body, (f"recipient not named by user: {', '.join(bad)}" if bad else None)
+
+
+class ReadScopeGuard(Defense):
+    """Document-read allowlist: the agent may only open documents the user's task names ('meeting_notes').
+
+    This is least privilege on the *input* side. A secret that is never read cannot be leaked, however it is
+    reworded, encoded or split, so it ignores the output format entirely. It says nothing about who receives
+    mail (a redirect or CC still goes out, just with an empty body), and it also blocks legitimate reads of
+    documents the user did not name but the task needs, such as an appendix the notes point to.
+    """
+
+    name = "read_scope"
+
+    def check_read(self, scenario, name):
+        named = set(re.findall(r"'(\w+)'", scenario.task))
+        return None if name in named else f"document not named by user: {name}"
 
 
 class OutputDLP(Defense):
@@ -175,6 +195,11 @@ class DefendedSandbox:
         return self.base.calls
 
     def read_document(self, name: str) -> str:
+        for d in self.defenses:
+            veto = d.check_read(self.scenario, name)
+            if veto:
+                self.base.blocked.append({"defense": d.name, "tool": "read_document", "reason": veto})
+                return "blocked by policy"
         text = self.base.read_document(name)
         for d in self.defenses:
             filtered = d.filter_read(text)
@@ -216,6 +241,8 @@ def defended_naive_agents() -> list[DefendedAgent]:
         DefendedAgent(NaiveAgent(), [InputQuarantineV2()], "naive+quarantine v2"),
         DefendedAgent(NaiveAgent(), [EgressProvenanceGuard()], "naive+egress guard"),
         DefendedAgent(NaiveAgent(), [RecipientAllowlist(), EgressProvenanceGuard()], "naive+allowlist+egress guard"),
+        DefendedAgent(NaiveAgent(), [ReadScopeGuard()], "naive+read scope"),
+        DefendedAgent(NaiveAgent(), [RecipientAllowlist(), ReadScopeGuard()], "naive+allowlist+read scope"),
         DefendedAgent(NaiveAgent(), [NormalizingEgressGuard()], "naive+egress guard v2"),
         DefendedAgent(NaiveAgent(), [RecipientAllowlist(), NormalizingEgressGuard()], "naive+allowlist+egress guard v2"),
     ]

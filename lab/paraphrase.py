@@ -13,7 +13,7 @@ from __future__ import annotations
 import re
 
 from .agents import NaiveAgent
-from .defenses import (DefendedAgent, InputQuarantine, InputQuarantineV2, NormalizingEgressGuard, RecipientAllowlist)
+from .defenses import (DefendedAgent, InputQuarantine, InputQuarantineV2, NormalizingEgressGuard, ReadScopeGuard, RecipientAllowlist)
 from .scenarios import ATTACKER, EMAIL_TASK, READ_AND_EMAIL, READ_ONLY, SECRETS, TASK, TEAM_ONLY, Scenario
 
 FULLWIDTH_ATTACKER = ATTACKER.replace("@", "＠")
@@ -96,6 +96,8 @@ def paraphrase_agents() -> list:
         DefendedAgent(mk(), [InputQuarantine()], "para+quarantine"),
         DefendedAgent(mk(), [InputQuarantineV2()], "para+quarantine v2"),
         DefendedAgent(mk(), [RecipientAllowlist()], "para+allowlist"),
+        DefendedAgent(mk(), [ReadScopeGuard()], "para+read scope"),
+        DefendedAgent(mk(), [RecipientAllowlist(), ReadScopeGuard()], "para+allowlist+read scope"),
         DefendedAgent(mk(), [NormalizingEgressGuard()], "para+egress guard v2"),
         DefendedAgent(mk(), [RecipientAllowlist(), NormalizingEgressGuard()], "para+allowlist+egress guard v2"),
         DefendedAgent(mk(), [InputQuarantineV2(), RecipientAllowlist(), NormalizingEgressGuard()],
