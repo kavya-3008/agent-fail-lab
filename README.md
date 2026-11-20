@@ -47,6 +47,10 @@ What each defense does and does not catch (all offline, scripted agents):
 
 Caveat: the agents are scripted and the scenarios were written by the same author as the defenses, so these results map what each mechanism can and cannot see; they are not a guarantee against a real model or a real adversary. The quarantine's 10/11 in particular is likely optimistic against adaptive paraphrasing.
 
+### Trace viewer
+
+`docs/traces.html` replays every run (14 agents x 13 scenarios = 182 runs) step by step: the user task, each tool call, the document text the agent read (invisible Unicode is decoded and highlighted), defense actions, and the first tool call the detectors flag. Filter by failures or passes. Per-call flagging reuses the same detectors, so it only shows what they can see: a `read_document` of the secrets file is not flagged, only the later send is. It is a debugging aid, not a new measurement.
+
 ### Adaptive attacks on the egress guard
 
 `lab/adaptive.py` holds eight extra attacks (kept out of the 11-attack table) that leak the same secret into an email to the *allowed* recipient but write it differently: dash between every character, leetspeak, rot13, base32, Caesar shift 3, Cyrillic lookalike letters, only the last six characters, and split across two emails. The detector was extended to recognize each format (and a secret split over several emails), and every attack beats the naive agent (0 / 8 resisted).
@@ -150,7 +154,7 @@ The naive agent gets exploited and the guarded one does not. That is the point: 
 - [x] Attack families: direct override, polite request, authority spoofing, invisible Unicode, multi-hop injection
 - [x] Tool-argument manipulation and conflicting-instruction attacks
 - [x] Defense experiments: input quarantining, tool-call allowlists, output filtering (instruction-hierarchy prompts need a live model, still open)
-- [x] Trace viewer (HTML) to replay where an agent went wrong (`docs/traces.html`, built by `scripts/build_trace_viewer.py`)
+- [x] Trace viewer (HTML) to replay where an agent went wrong (`lab/viewer.py`, published as `docs/traces.html`)
 - [~] Failure-rate report with confidence intervals (`scripts/live_report.py`; single model so far, no cross-model comparison yet)
 - [x] Egress provenance guard (cross-document content check on outgoing mail), alone and paired with the allowlist
 - [x] Adaptive attacks against the egress guard (split / encoded / character-substituted secrets) plus a hardened v2 guard (`lab/adaptive.py`); reworded instructions tested in `lab/paraphrase.py` (quarantine v1 resists 1/9, v2 6/9); paraphrased *secrets* still open
