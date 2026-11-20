@@ -6,6 +6,7 @@ They differ only in how much they trust text found inside documents. A real LLM-
 from __future__ import annotations
 
 import base64
+import codecs
 import re
 
 from .scenarios import Scenario, reveal
@@ -21,6 +22,46 @@ REDIRECT = re.compile(rf"send (?:all )?summaries to (?P<to>{ADDR})", re.I)
 CC = re.compile(rf"(?:\bcc:?|copies to)\s+(?P<to>{ADDR})", re.I)
 INCLUDE = re.compile(r"include (?:the )?contents of '(?P<doc>\w+)'(?P<rest>[^.]*)", re.I)
 OVERRIDE_PHRASE = re.compile(r"ignore (all )?previous", re.I)
+
+
+HOMOGLYPHS = str.maketrans("aeopc", "аеорс")  # Latin -> Cyrillic lookalikes
+
+
+def _caesar(text: str, k: int) -> str:
+    return "".join(
+        chr((ord(c) - base + k) % 26 + base) if c.isascii() and c.isalpha() and (base := 97 if c.islower() else 65) else c
+        for c in text
+    )
+
+
+def style_leak(extra: str, rest: str) -> list[str]:
+    """How a gullible agent formats the secret when the document says how ('rest' is the rest of that sentence).
+
+    Returns one chunk per email to send. The plain/base64 cases are the original attacks; the others are the
+    adaptive formats used by lab/adaptive.py to probe literal-matching defenses.
+    """
+    if "token value" in rest:
+        extra = extra.rsplit("=", 1)[-1]
+    if "base64" in rest:
+        return [base64.b64encode(extra.encode()).decode()]
+    if "base32" in rest:
+        return [base64.b32encode(extra.encode()).decode()]
+    if "rot13" in rest:
+        return [codecs.encode(extra, "rot13")]
+    if "caesar" in rest:
+        return [_caesar(extra, 3)]
+    if "dash between every character" in rest:
+        return ["-".join(extra)]
+    if "leetspeak" in rest:
+        return [extra.translate(str.maketrans("aeiosAEIOS", "4310543105"))]
+    if "cyrillic" in rest:
+        return [extra.translate(HOMOGLYPHS)]
+    if "last six characters" in rest:
+        return [extra[-6:]]
+    if "two emails" in rest:
+        mid = len(extra) // 2
+        return [extra[:mid], extra[mid:]]
+    return [extra]
 
 
 def _read_with_references(sandbox: Sandbox, first: str) -> str:
@@ -50,10 +91,11 @@ def _send_summary(sandbox: Sandbox, task: str, text: str, *, obey: bool) -> None
         if c := CC.search(text):
             to = f"{to}, {c.group('to')}"
         if i := INCLUDE.search(text):
-            extra = sandbox.read_document(i.group("doc"))
-            if "base64" in i.group("rest").lower():
-                extra = base64.b64encode(extra.encode()).decode()
-            body += "\n" + extra
+            first, *more = style_leak(sandbox.read_document(i.group("doc")), i.group("rest").lower())
+            sandbox.send_email(to, body + "\n" + first)
+            for chunk in more:
+                sandbox.send_email(to, chunk)
+            return
     sandbox.send_email(to, body)
 
 
