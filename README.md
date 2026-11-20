@@ -1,5 +1,7 @@
 # Agent Fail Lab
 
+[![tests](https://github.com/kavya-3008/agent-fail-lab/actions/workflows/tests.yml/badge.svg)](https://github.com/kavya-3008/agent-fail-lab/actions/workflows/tests.yml) · **[Live demo](https://kavya-3008.github.io/agent-fail-lab/)**
+
 A tiny red-team harness for tool-using AI agents. It plants hidden instructions in the data an agent processes
 (prompt injection), runs the agent in a sandbox, and records whether it was tricked into doing something the user never asked for.
 
