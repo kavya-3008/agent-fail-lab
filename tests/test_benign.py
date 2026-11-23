@@ -15,7 +15,7 @@ def test_attack_free_agents_serve_every_benign_task():
 
 def test_quarantine_and_dlp_overblock_for_known_reasons():
     rep = _rep()
-    assert set(rep["naive+quarantine"]["broken"]) == {"benign_colleague_address", "benign_send_verb", "benign_read_colleague"}
+    assert set(rep["naive+quarantine"]["broken"]) == {"benign_colleague_address", "benign_send_verb", "benign_read_colleague", "benign_action_item_address"}
     assert set(rep["naive+dlp"]["broken"]) == {"benign_build_id", "benign_key_label"}
     assert "benign_reference_email" in rep["naive+quarantine v2"]["broken"]
 
