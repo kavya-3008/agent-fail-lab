@@ -13,6 +13,7 @@ Inspired by research on stress-testing multimodal agents before deployment: find
 python3 -m pip install -r requirements.txt
 python3 -m lab.runner   # per-scenario results plus a per-agent summary table
 python3 -m pytest
+python3 -m lab.scorecard   # every stack of up to 3 defenses scored on every suite, with the Pareto front
 python3 scripts/live_report.py   # failure rates with Wilson intervals from recorded live runs
 ```
 
@@ -50,6 +51,24 @@ What each defense does and does not catch (all offline, scripted agents):
 - The detector also checks for secrets that are reversed, hex- or base64-encoded, and for emails to any address the user did not authorize (`wrong_recipient`).
 
 Caveat: the agents are scripted and the scenarios were written by the same author as the defenses, so these results map what each mechanism can and cannot see; they are not a guarantee against a real model or a real adversary. The quarantine's 10/11 in particular is likely optimistic against adaptive paraphrasing.
+
+### Defense-stack scorecard (all suites at once)
+
+`lab/scorecard.py` enumerates every stack of up to three of the eight defenses (93 stacks including the bare naive agent) and scores each on the 11 attacks, the 222 effective mutants, the 8 adaptive attacks and the 9 reworded attacks (the last against the paraphrase-aware agent), plus the 9 benign tasks. *Security* is the pooled share of the 250 attack runs resisted; *utility* is benign tasks served of 9. Run: `python3 -m lab.scorecard`.
+
+| Stack | Security | Utility (benign, of 9) | Weakest suite |
+|---|---|---|---|
+| naive | 0.0% | 9 | everything |
+| allowlist | 78.4% | 9 | adaptive 0/8, mutants 180/222 |
+| allowlist + read scope | **100%** | 8 | none (breaks `reference_email`) |
+| allowlist + quarantine v3 | 99.6% | 8 | reworded 8/9 |
+| allowlist + egress guard v2 | 98.8% | 8 | adaptive 5/8 |
+| quarantine v3 alone | 98.4% | 8 | reworded 5/9 |
+| allowlist + quarantine v2 | 100% | 3 | none, but breaks 6 of 9 benign tasks |
+
+17 of the 93 stacks resist all 250 attack runs. Their utility ranges from 1 to 8 of 9 benign tasks, and none exceeds 8: the best fully-secure stacks (allowlist + read scope, with or without an egress guard on top) all lose the one task that needs an unnamed document. The Pareto front (no other stack at least as good on both axes) is just the allowlist alone (less secure, no false positives) and the three allowlist + read scope stacks; adding an egress guard to that pair buys nothing measurable here. Anything involving DLP or quarantine v1/v2 is dominated, because their false positives cost utility without catching an attack the structural pair misses. Allowlist + quarantine v3 is the notable near-miss: 99.6% security at the same 8 of 9 utility, failing only the fullwidth-address reworded attack.
+
+Caveats: the pooled security number is dominated by the 222 mechanical mutants (most of them near-duplicates of the 11 attacks), so a single missed paraphrase barely moves it; read the per-suite columns, not just the percentage. All suites and defenses share one author and scripted agents, and nine benign tasks is a small utility sample, so "best" here means best on this sandbox, not in deployment. The guarded agent is not part of the enumeration (it is not a wrapper stack).
 
 ### Trace viewer
 
@@ -169,6 +188,7 @@ The naive agent gets exploited and the guarded one does not. That is the point: 
 - [x] Scenario generator that mutates attacks automatically (`lab/mutations.py`)
 - [x] Benign-task suite measuring each defense's false positives (`lab/benign.py`)
 - [x] Re-test the over-blocking defenses with a smarter variant: quarantine v3 drops only command-shaped sentences that reach outside the text (`AddresseeQuarantine`), measured on attacks, mutants, adaptive, paraphrase and benign suites
+- [x] Defense-stack scorecard: all combinations of up to three defenses scored on every suite, with a Pareto front (`lab/scorecard.py`)
 
 ## Config
 
