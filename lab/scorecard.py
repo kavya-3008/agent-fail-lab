@@ -1,10 +1,10 @@
 """Defense-stack scorecard: every combination of up to three defenses, scored on every suite at once.
 
 Each README table scores a hand-picked list of agents on one suite. This module asks the question the tables cannot:
-across *all* suites (the 11 attacks, the effective mutants, the adaptive and the reworded attacks) and the benign
+across *all* suites (the 11 attacks, the effective mutants, the adaptive, reworded and statement-form attacks) and the benign
 tasks, which stacks of defenses are worth using, and which are strictly worse than another stack?
 
-Security = share of attack runs resisted, pooled over the four attack suites. Utility = share of benign tasks served.
+Security = share of attack runs resisted, pooled over the five attack suites. Utility = share of benign tasks served.
 A stack is on the Pareto front when no other stack is at least as good on both and better on one.
 Run: python3 -m lab.scorecard
 """
@@ -15,8 +15,9 @@ import itertools
 from .adaptive import ADAPTIVE_SCENARIOS
 from .agents import NaiveAgent
 from .benign import BENIGN_CASES, served
-from .defenses import (AddresseeQuarantine, DefendedAgent, EgressProvenanceGuard, InputQuarantine, InputQuarantineV2,
-                       NormalizingEgressGuard, OutputDLP, ReadScopeGuard, RecipientAllowlist)
+from .declarative import DECLARATIVE_SCENARIOS, DeclarativeNaiveAgent
+from .defenses import (AddresseeQuarantine, DefendedAgent, EgressProvenanceGuard, FragmentEgressGuard, InputQuarantine,
+                       InputQuarantineV2, NormalizingEgressGuard, OutputDLP, ReadScopeGuard, RecipientAllowlist)
 from .detectors import detect_failures
 from .mutations import mutants
 from .paraphrase import PARAPHRASE_SCENARIOS, ParaphraseNaiveAgent
@@ -26,9 +27,9 @@ from .tools import Sandbox
 DEFENSES = {
     "allowlist": RecipientAllowlist, "dlp": OutputDLP, "q1": InputQuarantine, "q2": InputQuarantineV2,
     "q3": AddresseeQuarantine, "egress": EgressProvenanceGuard, "egress2": NormalizingEgressGuard,
-    "read_scope": ReadScopeGuard,
+    "egress3": FragmentEgressGuard,    "read_scope": ReadScopeGuard,
 }
-SUITES = ("attacks", "mutants", "adaptive", "reworded")
+SUITES = ("attacks", "mutants", "adaptive", "reworded", "statement")
 
 
 def stacks(max_size: int = 3) -> list[tuple[str, ...]]:
@@ -57,10 +58,11 @@ def _effective_mutants():
 def score_stack(stack: tuple[str, ...], effective=None) -> dict:
     effective = _effective_mutants() if effective is None else effective
     attacks = [s for s in SCENARIOS if s.family != "control"]
-    suites = {"attacks": attacks, "mutants": effective, "adaptive": ADAPTIVE_SCENARIOS, "reworded": PARAPHRASE_SCENARIOS}
+    suites = {"attacks": attacks, "mutants": effective, "adaptive": ADAPTIVE_SCENARIOS, "reworded": PARAPHRASE_SCENARIOS,
+              "statement": DECLARATIVE_SCENARIOS}
     row = {"stack": "+".join(stack) or "naive", "size": len(stack), "suites": {}}
     for suite, scenarios in suites.items():
-        inner = ParaphraseNaiveAgent() if suite == "reworded" else NaiveAgent()
+        inner = {"reworded": ParaphraseNaiveAgent, "statement": DeclarativeNaiveAgent}.get(suite, NaiveAgent)()
         agent = _agent(inner, stack)
         row["suites"][suite] = [len(scenarios) - sum(_fails(agent, sc) for sc in scenarios), len(scenarios)]
     agent = _agent(NaiveAgent(), stack)
